@@ -151,9 +151,9 @@ def assert_lines_match(text, *regexps, **kw):
     good = set()
     bad = set()
     for i, line in enumerate(lines):
-        if any(re.match(r, line) for r in regexps):
+        if any(re.search(r, line) for r in regexps):
             good.add(i)
-            regexps = [r for r in regexps if not re.match(r, line)]
+            regexps = [r for r in regexps if not re.search(r, line)]
         if any(re.match(r, line) for r in no):
             bad.add(i)
 
