@@ -356,8 +356,34 @@ page_decref(struct PageInfo* pp)
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
-	// Fill this function in
-	return NULL;
+	struct PageInfo *pp;
+	pde_t *pde;
+	physaddr_t pa;
+
+	pde = &pgdir[PDX(va)];
+
+	if (!(*pde & PTE_P)) {
+		if (!create) {
+			return NULL;
+		}
+
+		// allocate page table page
+		pp = page_alloc(ALLOC_ZERO);
+		if (!pp) {
+			return NULL;
+		}
+
+		pp->pp_ref++;
+		pa = page2pa(pp);
+		*pde = pa | PTE_P;
+
+		/* cprintf("[pgdir_walk] allocated pgdir[%x] = %x\n", PDX(va), *pde); */
+	}
+
+	/* cprintf("[pgdir_walk] returns valid ptep %x\n", (pte_t *)(KADDR(PTE_ADDR(*pde)))); */
+
+	// pointer to virtual address of page table entries
+	return (pte_t *)(KADDR(PTE_ADDR(*pde))) + PTX(va);
 }
 
 //
@@ -405,7 +431,29 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
-	// Fill this function in
+	pte_t *ptep;
+
+	ptep = pgdir_walk(pgdir, va, 1);
+	if (!ptep) {
+		return -E_NO_MEM;
+	}
+
+	/* cprintf("[page_insert] found valid ptep: %x, *ptep: %x\n", ptep, *ptep); */
+
+	if (*ptep & PTE_P) {
+		/* cprintf("[page_insert] page already exists (%x: %x)\n", ptep, *ptep); */
+		page_remove(pgdir, va);
+
+		// pp is free, so reallocate it
+		if (pp->pp_ref == 0) {
+			pp = page_alloc(ALLOC_ZERO);
+		}
+	}
+
+	*ptep = page2pa(pp) | perm | PTE_P;
+	pp->pp_ref++;
+	pgdir[PDX(va)] |= perm;
+
 	return 0;
 }
 
@@ -423,7 +471,16 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
-	// Fill this function in
+	pte_t *ptep;
+
+	// pointer to page table 
+	ptep = pgdir_walk(pgdir, va, 0);
+	if (!ptep) return NULL;
+	/* cprintf("[page_lookup] ptep = %x\n", ptep); */
+
+	if (pte_store) *pte_store = ptep;
+	if (ptep) return pa2page(PTE_ADDR(*ptep));
+
 	return NULL;
 }
 
@@ -445,7 +502,22 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 void
 page_remove(pde_t *pgdir, void *va)
 {
-	// Fill this function in
+	struct PageInfo *pp;
+	pte_t *ptep;
+
+	pp = page_lookup(pgdir, va, 0);
+	if (!pp) return;
+
+	/* cprintf("(page_remove) pp = %x\n", pp); */
+
+	// clear page table entry
+	ptep = (pte_t *)KADDR(PTE_ADDR(pgdir[PDX(va)])) + PTX(va);
+	*ptep = 0;
+
+	page_decref(pp);
+	tlb_invalidate(pgdir, va);
+
+	/* cprintf("(page_remove) finally pp->pp_ref = %x\n", pp->pp_ref); */
 }
 
 //
