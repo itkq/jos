@@ -1,0 +1,112 @@
+diff --git a/6.828/xv6-public/Makefile b/6.828/xv6-public/Makefile
+index 6e08978..c957479 100644
+--- a/6.828/xv6-public/Makefile
++++ b/6.828/xv6-public/Makefile
+@@ -160,6 +160,7 @@ mkfs: mkfs.c fs.h
+ 
+ UPROGS=\
+ 	_cat\
++	_date\
+ 	_echo\
+ 	_forktest\
+ 	_grep\
+diff --git a/6.828/xv6-public/date.c b/6.828/xv6-public/date.c
+new file mode 100644
+index 0000000..d7ee79e
+--- /dev/null
++++ b/6.828/xv6-public/date.c
+@@ -0,0 +1,20 @@
++#include "types.h"
++#include "user.h"
++#include "date.h"
++
++int
++main(int argc, char *argv[])
++{
++	struct rtcdate r;
++
++	if (date(&r)) {
++		printf(2, "date failed\n");
++		exit();
++	}
++
++	printf(1, "%d/%d/%d %d:%d:%d +00:00\n",
++			r.year, r.month, r.day, r.hour, r.minute, r.second);
++
++	exit();
++}
+diff --git a/6.828/xv6-public/syscall.c b/6.828/xv6-public/syscall.c
+index ee85261..429838d 100644
+--- a/6.828/xv6-public/syscall.c
++++ b/6.828/xv6-public/syscall.c
+@@ -103,6 +103,7 @@ extern int sys_unlink(void);
+ extern int sys_wait(void);
+ extern int sys_write(void);
+ extern int sys_uptime(void);
++extern int sys_date(void);
+ 
+ static int (*syscalls[])(void) = {
+ [SYS_fork]    sys_fork,
+@@ -126,6 +127,7 @@ static int (*syscalls[])(void) = {
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_date]    sys_date,
+ };
+ 
+ void
+diff --git a/6.828/xv6-public/syscall.h b/6.828/xv6-public/syscall.h
+index bc5f356..1a620b9 100644
+--- a/6.828/xv6-public/syscall.h
++++ b/6.828/xv6-public/syscall.h
+@@ -20,3 +20,4 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_date   22
+diff --git a/6.828/xv6-public/sysproc.c b/6.828/xv6-public/sysproc.c
+index 0686d29..562d003 100644
+--- a/6.828/xv6-public/sysproc.c
++++ b/6.828/xv6-public/sysproc.c
+@@ -89,3 +89,20 @@ sys_uptime(void)
+   release(&tickslock);
+   return xticks;
+ }
++
++int
++sys_date(void)
++{
++	struct rtcdate *r;
++
++	// arg 0: struct rtcdate *
++	if (argptr(0, (void*)&r, sizeof(*r))) return -1;
++
++	acquire(&tickslock);
++	cmostime(r);
++	release(&tickslock);
++
++	if (!r) return -1;
++
++	return 0;
++}
+diff --git a/6.828/xv6-public/user.h b/6.828/xv6-public/user.h
+index f45b8d5..4eafb26 100644
+--- a/6.828/xv6-public/user.h
++++ b/6.828/xv6-public/user.h
+@@ -23,6 +23,7 @@ int getpid(void);
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
++int date(struct rtcdate*);
+ 
+ // ulib.c
+ int stat(char*, struct stat*);
+diff --git a/6.828/xv6-public/usys.S b/6.828/xv6-public/usys.S
+index 8bfd8a1..ba76d54 100644
+--- a/6.828/xv6-public/usys.S
++++ b/6.828/xv6-public/usys.S
+@@ -29,3 +29,4 @@ SYSCALL(getpid)
+ SYSCALL(sbrk)
+ SYSCALL(sleep)
+ SYSCALL(uptime)
++SYSCALL(date)
