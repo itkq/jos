@@ -438,16 +438,22 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 		return -E_NO_MEM;
 	}
 
-	/* cprintf("[page_insert] found valid ptep: %x, *ptep: %x\n", ptep, *ptep); */
-
 	if (*ptep & PTE_P) {
 		/* cprintf("[page_insert] page already exists (%x: %x)\n", ptep, *ptep); */
-		page_remove(pgdir, va);
 
-		// pp is free, so reallocate it
-		if (pp->pp_ref == 0) {
-			pp = page_alloc(ALLOC_ZERO);
+		// pp was already mapped to va
+		// so no need to map, but need to modity permission
+		if (page2pa(pp) == PTE_ADDR(*ptep) && pp->pp_ref == 1) {
+			/* cprintf("[page_insert] pp was already mapped to va\n"); */
+			*ptep = page2pa(pp) | perm | PTE_P;
+			pgdir[PDX(va)] |= perm;
+
+			return 0;
+		} else {
+			// need to remap
+			page_remove(pgdir, va);
 		}
+
 	}
 
 	*ptep = page2pa(pp) | perm | PTE_P;
