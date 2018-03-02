@@ -175,7 +175,7 @@ mem_init(void)
 	//    - the new image at UPAGES -- kernel R, user R
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
-	// Your code goes here:
+	boot_map_region(kern_pgdir, (uintptr_t)UPAGES, UVPT - UPAGES, PADDR(pages), PTE_U);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -187,7 +187,7 @@ mem_init(void)
 	//       the kernel overflows its stack, it will fault rather than
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
-	// Your code goes here:
+	boot_map_region(kern_pgdir, (uintptr_t)(KSTACKTOP - KSTKSIZE), KSTKSIZE, PADDR(bootstack), PTE_W);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -196,7 +196,7 @@ mem_init(void)
 	// We might not have 2^32 - KERNBASE bytes of physical memory, but
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
-	// Your code goes here:
+	boot_map_region(kern_pgdir, (uintptr_t)KERNBASE, ~KERNBASE + 1, 0, PTE_W);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -378,6 +378,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 		*pde = pa | PTE_P;
 
 		/* cprintf("[pgdir_walk] allocated pgdir[%x] = %x\n", PDX(va), *pde); */
+		/* cprintf("[pgdir_walk] page table page = 0x%x\n", page2pa(pp)); */
 	}
 
 	/* cprintf("[pgdir_walk] returns valid ptep %x\n", (pte_t *)(KADDR(PTE_ADDR(*pde)))); */
@@ -400,7 +401,22 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
-	// Fill this function in
+	pte_t *ptep;
+	size_t i;
+
+	assert(size >= PGSIZE);
+
+	// set pte
+	for (i = 0; i < size; i += PGSIZE) {
+		ptep = pgdir_walk(pgdir, (uintptr_t *)(va + i), 1);
+		*ptep = (pa + i) | perm | PTE_P;
+	}
+
+	// modify pde permission
+	pgdir[PDX(va)] |= (perm | PTE_P);
+	for (i = 0; i < size >> PDXSHIFT; i++) {
+		pgdir[PDX(va) + i] |= (perm | PTE_P);
+	}
 }
 
 //
