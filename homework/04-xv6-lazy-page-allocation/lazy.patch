@@ -1,0 +1,49 @@
+diff --git a/6.828/xv6-public/sysproc.c b/6.828/xv6-public/sysproc.c
+index 0686d29..1687f34 100644
+--- a/6.828/xv6-public/sysproc.c
++++ b/6.828/xv6-public/sysproc.c
+@@ -45,15 +45,15 @@ sys_getpid(void)
+ int
+ sys_sbrk(void)
+ {
+-  int addr;
+-  int n;
++	int addr;
++	int n;
+ 
+-  if(argint(0, &n) < 0)
+-    return -1;
+-  addr = myproc()->sz;
+-  if(growproc(n) < 0)
+-    return -1;
+-  return addr;
++	if(argint(0, &n) < 0)
++		return -1;
++	addr = myproc()->sz;
++	myproc()->sz += n;
++
++	return addr;
+ }
+ 
+ int
+diff --git a/6.828/xv6-public/trap.c b/6.828/xv6-public/trap.c
+index 41c66eb..dd3a309 100644
+--- a/6.828/xv6-public/trap.c
++++ b/6.828/xv6-public/trap.c
+@@ -86,6 +86,16 @@ trap(struct trapframe *tf)
+               tf->trapno, cpuid(), tf->eip, rcr2());
+       panic("trap");
+     }
++
++	// trap T_PGFLT
++	if (tf->trapno == T_PGFLT) {
++		if (allocuvm(myproc()->pgdir, PGROUNDDOWN(rcr2()), myproc()->sz) == 0) {
++			panic("[lazy allocation] allocuvm returns 0\n");
++		}
++		switchuvm(myproc());
++		break;
++	}
++
+     // In user space, assume process misbehaved.
+     cprintf("pid %d %s: trap %d err %d on cpu %d "
+             "eip 0x%x addr 0x%x--kill proc\n",
