@@ -1,0 +1,167 @@
+diff --git a/6.828/xv6-public/Makefile b/6.828/xv6-public/Makefile
+index 6e08978..2398d1d 100644
+--- a/6.828/xv6-public/Makefile
++++ b/6.828/xv6-public/Makefile
+@@ -159,6 +159,7 @@ mkfs: mkfs.c fs.h
+ .PRECIOUS: %.o
+ 
+ UPROGS=\
++	_alarmtest\
+ 	_cat\
+ 	_echo\
+ 	_forktest\
+diff --git a/6.828/xv6-public/alarmtest.c b/6.828/xv6-public/alarmtest.c
+new file mode 100644
+index 0000000..55a9024
+--- /dev/null
++++ b/6.828/xv6-public/alarmtest.c
+@@ -0,0 +1,24 @@
++#include "types.h"
++#include "stat.h"
++#include "user.h"
++
++void periodic();
++
++int
++main(int argc, char *argv[])
++{
++	int i;
++	printf(1, "alarmtest starting\n");
++	alarm(10, periodic);
++	for(i = 0; i < 50*500000; i++){
++		if((i++ % 500000) == 0)
++			write(2, ".", 1);
++	}
++	exit();
++}
++
++void
++periodic()
++{
++	printf(1, "alarm!\n");
++}
+diff --git a/6.828/xv6-public/proc.c b/6.828/xv6-public/proc.c
+index 806b1b1..2f10f04 100644
+--- a/6.828/xv6-public/proc.c
++++ b/6.828/xv6-public/proc.c
+@@ -112,6 +112,9 @@ found:
+   memset(p->context, 0, sizeof *p->context);
+   p->context->eip = (uint)forkret;
+ 
++  p->alarmticks = 0;
++  p->acc_ticks = 0;
++
+   return p;
+ }
+ 
+diff --git a/6.828/xv6-public/proc.h b/6.828/xv6-public/proc.h
+index 1647114..16b1780 100644
+--- a/6.828/xv6-public/proc.h
++++ b/6.828/xv6-public/proc.h
+@@ -49,6 +49,10 @@ struct proc {
+   struct file *ofile[NOFILE];  // Open files
+   struct inode *cwd;           // Current directory
+   char name[16];               // Process name (debugging)
++
++  int alarmticks;
++  void (*alarmhandler)();
++  int acc_ticks;
+ };
+ 
+ // Process memory is laid out contiguously, low addresses first:
+diff --git a/6.828/xv6-public/syscall.c b/6.828/xv6-public/syscall.c
+index ee85261..4f57474 100644
+--- a/6.828/xv6-public/syscall.c
++++ b/6.828/xv6-public/syscall.c
+@@ -103,6 +103,7 @@ extern int sys_unlink(void);
+ extern int sys_wait(void);
+ extern int sys_write(void);
+ extern int sys_uptime(void);
++extern int sys_alarm(void);
+ 
+ static int (*syscalls[])(void) = {
+ [SYS_fork]    sys_fork,
+@@ -126,6 +127,7 @@ static int (*syscalls[])(void) = {
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_alarm]   sys_alarm,
+ };
+ 
+ void
+diff --git a/6.828/xv6-public/syscall.h b/6.828/xv6-public/syscall.h
+index bc5f356..7f2e507 100644
+--- a/6.828/xv6-public/syscall.h
++++ b/6.828/xv6-public/syscall.h
+@@ -20,3 +20,4 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_alarm  22
+diff --git a/6.828/xv6-public/sysproc.c b/6.828/xv6-public/sysproc.c
+index 0686d29..3782e59 100644
+--- a/6.828/xv6-public/sysproc.c
++++ b/6.828/xv6-public/sysproc.c
+@@ -89,3 +89,18 @@ sys_uptime(void)
+   release(&tickslock);
+   return xticks;
+ }
++
++int
++sys_alarm(void)
++{
++	int ticks;
++	void (*handler)();
++
++	if(argint(0, &ticks) < 0)
++		return -1;
++	if(argptr(1, (char**)&handler, 1) < 0)
++		return -1;
++	myproc()->alarmticks = ticks;
++	myproc()->alarmhandler = handler;
++	return 0;
++}
+diff --git a/6.828/xv6-public/trap.c b/6.828/xv6-public/trap.c
+index 41c66eb..48b3b3b 100644
+--- a/6.828/xv6-public/trap.c
++++ b/6.828/xv6-public/trap.c
+@@ -54,6 +54,18 @@ trap(struct trapframe *tf)
+       wakeup(&ticks);
+       release(&tickslock);
+     }
++
++	if (myproc() && (tf->cs & 3) == 3) {
++		if (myproc()->alarmticks != 0 && ++myproc()->acc_ticks == myproc()->alarmticks) {
++			myproc()->acc_ticks = 0;
++
++			// like manual function call (does not save registers)
++			tf->esp -= 4;
++			*((uint *)(tf->esp)) = tf->eip;
++			tf->eip = (uint)myproc()->alarmhandler;
++		}
++	}
++
+     lapiceoi();
+     break;
+   case T_IRQ0 + IRQ_IDE:
+diff --git a/6.828/xv6-public/user.h b/6.828/xv6-public/user.h
+index f45b8d5..971db35 100644
+--- a/6.828/xv6-public/user.h
++++ b/6.828/xv6-public/user.h
+@@ -23,6 +23,7 @@ int getpid(void);
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
++int alarm(int ticks, void (*handler)());
+ 
+ // ulib.c
+ int stat(char*, struct stat*);
+diff --git a/6.828/xv6-public/usys.S b/6.828/xv6-public/usys.S
+index 8bfd8a1..a12e199 100644
+--- a/6.828/xv6-public/usys.S
++++ b/6.828/xv6-public/usys.S
+@@ -29,3 +29,4 @@ SYSCALL(getpid)
+ SYSCALL(sbrk)
+ SYSCALL(sleep)
+ SYSCALL(uptime)
++SYSCALL(alarm)
