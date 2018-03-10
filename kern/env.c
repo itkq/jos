@@ -280,18 +280,15 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   (Watch out for corner-cases!)
 
 	struct PageInfo *pp;
-	void *addr;
+	unsigned int i;
 	int r;
 
-	for (addr = ROUNDDOWN(va, PGSIZE); addr <= ROUNDUP(va + len, PGSIZE); addr += PGSIZE) {
-		pp = page_alloc(0);
-		if (!pp) {
+	for (i = 0; i < ROUNDUP(len, PGSIZE); i += PGSIZE) {
+		if ( !(pp = page_alloc(0)) ) {
 			panic("[region_alloc] out of physical pages");
 		}
 
-		/* cprintf("addr = %x\n", addr); */
-
-		if ((r = page_insert(e->env_pgdir, pp, addr, PTE_U | PTE_W)) < 0) {
+		if ( (r = page_insert(e->env_pgdir, pp, ROUNDDOWN(va, PGSIZE) + i, PTE_U | PTE_W)) < 0) {
 			panic("[region_alloc] %e", r);
 		}
 	}
@@ -367,7 +364,7 @@ load_icode(struct Env *e, uint8_t *binary)
 		if (ph->p_type != ELF_PROG_LOAD) continue;
 
 		// allocate physical memory and load program segments
-		region_alloc(e, (void *)ph->p_va, ph->p_filesz);
+		region_alloc(e, (void *)ph->p_va, ph->p_memsz);
 		memset((void *)ph->p_va, 0, ph->p_memsz);
 		memmove((void *)ph->p_va, binary + ph->p_offset, ph->p_filesz);
 	}
