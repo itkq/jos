@@ -309,6 +309,7 @@ page_init(void)
 	for (i = 0; i < npages; i++) {
 		addr = page2pa(&pages[i]);
 		if (i == 0 \
+				|| (addr == MPENTRY_PADDR) \
 				|| (IOPHYSMEM <= addr && addr < EXTPHYSMEM) \
 				|| (EXTPHYSMEM <= addr && addr < PTSIZE)
 		   ) continue;
