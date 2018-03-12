@@ -632,9 +632,12 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// okay to simply panic if this happens).
 	//
 	// Hint: The staff solution uses boot_map_region.
-	//
-	// Your code here:
-	panic("mmio_map_region not implemented");
+
+	uintptr_t ret = base;
+	boot_map_region(kern_pgdir, base, size, pa, PTE_PCD | PTE_PWT | PTE_W);
+	base += ROUNDUP(size, PGSIZE);
+
+	return (void *)ret;
 }
 
 static uintptr_t user_mem_check_addr;
