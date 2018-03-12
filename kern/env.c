@@ -116,12 +116,11 @@ env_init(void)
 {
 	// Set up envs array
 	size_t i;
-	env_free_list = envs;
 
 	for (i = 0; i < NENV - 1; i++) {
-		envs[i].env_id = 0;
-		env_free_list->env_link = &envs[i + 1];
+		envs[i].env_link = &envs[i + 1];
 	}
+	env_free_list = &envs[0];
 
 	// Per-CPU part of the initialization
 	env_init_percpu();
