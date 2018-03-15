@@ -72,9 +72,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		case SYS_cputs:
 			sys_cputs((const char *)a1, (size_t)a2);
 			return 0;
+		case SYS_cgetc:
+			return sys_cgetc();
+		case SYS_getenvid:
+			return sys_getenvid();
 		case SYS_env_destroy:
-			sys_env_destroy(sys_getenvid());
-			return 0;
+			return sys_env_destroy(sys_getenvid());
 		default:
 			return -E_INVAL;
 	}
