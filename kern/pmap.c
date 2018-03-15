@@ -701,6 +701,17 @@ user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 }
 
 
+//	1 if va >= UTOP or va is not page-aligned,
+//	0 on success.
+int
+user_addr_check(void *va)
+{
+	if (va >= (void *)UTOP || (int)va % PGSIZE != 0)
+		return -1;
+
+	return 0;
+}
+
 // --------------------------------------------------------------
 // Checking functions.
 // --------------------------------------------------------------
