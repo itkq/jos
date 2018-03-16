@@ -2,7 +2,7 @@ Learning Operating System Engineering using MIT class [6.828 (2017)](https://pdo
 
 ## Install
 ```sh
-# install gmp, mpfr, libmpc and gcc4.9 with homebrew
+# install gmp and gcc with homebrew
 # and build xv6, i386-jos-elf-gcc and i386-jos-elf-gdb
 $ bash < install.sh
 ```
