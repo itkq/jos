@@ -549,7 +549,7 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	pte_t *ptep;
 
-	// pointer to page table 
+	// pointer to page table
 	ptep = pgdir_walk(pgdir, va, 0);
 	if (!ptep) return NULL;
 	/* cprintf("[page_lookup] ptep = %x\n", ptep); */
